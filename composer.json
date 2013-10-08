@@ -1,5 +1,5 @@
 {
-    "name": "SepaXmlCreator/SepaXmlCreator",
+    "name": "sepa-xml-creator/sepa-xml-creator",
     "type": "library",
     "description": "Library for creating SEPA XML files",
     "keywords": ["sepa","banking"],
