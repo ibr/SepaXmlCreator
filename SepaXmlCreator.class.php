@@ -1,67 +1,65 @@
 <?php
 /*
- * SepaXmlCreator - by Thomas Schiffler.de
- * http://www.ThomasSchiffler.de/2013_09/code-schnipsel/sepa-sammeluberweisung-xml-datei-mit-php-erstellen
- *
- * Copyright (c) 2013 Thomas Schiffler (http://www.ThomasSchiffler.de
+ * Copyright (c) 2013 Thomas Schiffler (http://www.ThomasSchiffler.de)
  * GPL (http://www.opensource.org/licenses/gpl-license.php) license.
  *
+ * Korbinian Pauli
  */
 
-class SepaBuchung{
-	var $end2end, $iban, $bic, $kontoinhaber, $verwendungszweck, $amount;
+class SepaTransaction{
+	var $end2end, $iban, $bic, $recipient, $reference, $amount;
 
-	function setEnd2End($end2end) {
+	public function setEnd2End($end2end) {
 		$this->end2end = $end2end;
 	}
 
-	function setIban($iban) {
+	public function setIban($iban) {
 		$this->iban = str_replace(' ','',$iban);
 	}
 
-	function setBic($bic) {
+	public function setBic($bic) {
 		$this->bic = $bic;
 	}
 
-	function setName($name) {
-		$this->kontoinhaber = $name;
+	public function setRecipient($recipient) {
+		$this->recipient = $recipient;
 	}
 
-	function setVerwendungszweck($verwendungszweck) {
-		$this->verwendungszweck = $verwendungszweck;
+	public function setReference($reference) {
+		$this->reference = $reference;
 	}
 
-	function setBetrag($betrag) {
-		$this->amount = $betrag;
+	function setAmount($amount) {
+		$this->amount = $amount;
 	}
 }
 
 class SepaXmlCreator {
-	var $buchungssaetze = array();
+	var $transactions = array();
 
 	var $debitorName, $debitorIban, $debitorBic;
 	var $offset = 0;
-	var $waehrung = "EUR";
+	var $currency = "EUR";
 
-	function setDebitorValues($name, $iban, $bic) {
+	public function setDebitorValues($name, $iban, $bic) {
 		$this->debitorName = $name;
 		$this->debitorIban = $iban;
 		$this->debitorBic = $bic;
 	}
 
-	function setCurrency($currency) {
-		$this->waehrung = $currency;
+	public function setCurrency($currency) {
+		$this->currency = $currency;
 	}
 
-	function addBuchung($buchungssatz) {
-		array_push($this->buchungssaetze, $buchungssatz);
+	public function addTransaction($transaction) {
+		array_push($this->transactions, $transaction);
 	}
 
-	function setAusfuehrungOffset($offset) {
+	function setExecutionOffset($offset) {
 		$this->offset = $offset;
 	}
 
-	function generateSammelueberweisungXml() {
+	function generateTransferFile() {
 		$dom = new DOMDocument('1.0', 'utf-8');
 
 		// Build Document-Root
@@ -84,7 +82,7 @@ class SepaXmlCreator {
 		// Msg-ID
 		$header->appendChild($dom->createElement('MsgId', $this->debitorBic . '00' . date('YmdHis', $creationTime)));
 		$header->appendChild($dom->createElement('CreDtTm', date('Y-m-d', $creationTime) . 'T' . date('H:i:s', $creationTime) . '.000Z'));
-		$header->appendChild($dom->createElement('NbOfTxs', count($this->buchungssaetze)));
+		$header->appendChild($dom->createElement('NbOfTxs', count($this->transactions)));
 		$header->appendChild($initatorName = $dom->createElement('InitgPty'));
 		$initatorName->appendChild($dom->createElement('Nm', $this->debitorName));
 
@@ -96,20 +94,20 @@ class SepaXmlCreator {
 		// TRF = Transfer (Überweisung), TRA = CreditTransfer (Lastschrift)
 		$paymentInfo->appendChild($dom->createElement('PmtMtd', 'TRF'));
 		$paymentInfo->appendChild($dom->createElement('BtchBookg', 'true'));
-		$paymentInfo->appendChild($dom->createElement('NbOfTxs', count($this->buchungssaetze)));
-		$paymentInfo->appendChild($dom->createElement('CtrlSum', $this->getUmsatzsumme()));
+		$paymentInfo->appendChild($dom->createElement('NbOfTxs', count($this->transactions)));
+		$paymentInfo->appendChild($dom->createElement('CtrlSum', $this->getTotalAmount()));
 		$paymentInfo->appendChild($tmp1 = $dom->createElement('PmtTpInf'));
 		$tmp1->appendChild($tmp2 = $dom->createElement('SvcLvl'));
 		$tmp2->appendChild($dom->createElement('Cd', 'SEPA'));
 
-		// Ausführungsdatum berechnen
-		$ausfuehrungszeit = $creationTime;
+		// calculation execution date
+		$executionTimestamp = $creationTime;
 		if ($this->offset > 0) {
-			$ausfuehrungszeit = $ausfuehrungszeit + (24 * 3600 * $this->offset);
+			$executionTimestamp += 24 * 3600 * $this->offset;
 		}
-		$paymentInfo->appendChild($dom->createElement('ReqdExctnDt', date('Y-m-d', $ausfuehrungszeit)));
+		$paymentInfo->appendChild($dom->createElement('ReqdExctnDt', date('Y-m-d', $executionTimestamp)));
 
-		// Debitor Daten
+		// Debitor data
 		$paymentInfo->appendChild($tmp1 = $dom->createElement('Dbtr'));
 		$tmp1->appendChild($dom->createElement('Nm', $this->debitorName));
 		$paymentInfo->appendChild($tmp1 = $dom->createElement('DbtrAcct'));
@@ -121,55 +119,51 @@ class SepaXmlCreator {
 
 		$paymentInfo->appendChild($dom->createElement('ChrgBr', 'SLEV'));
 
-		// Buchungssätze hinzufügen
-		foreach ($this->buchungssaetze as $buchungssatz) {
-			$paymentInfo->appendChild($buchung = $dom->createElement('CdtTrfTxInf'));
+		// Add transactions
+		foreach ($this->transactions as $transaction) {
+			$paymentInfo->appendChild($transactionElement = $dom->createElement('CdtTrfTxInf'));
 
 			// End2End setzen
-			if (isset($buchungssatz->end2end)) {
-				$buchung->appendChild($tmp1 = $dom->createElement('PmtId'));
-				$tmp1->appendChild($dom->createElement('EndToEndId', $buchungssatz->end2end));
+			if (isset($transaction->end2end)) {
+				$transactionElement->appendChild($tmp1 = $dom->createElement('PmtId'));
+				$tmp1->appendChild($dom->createElement('EndToEndId', $transaction->end2end));
 			}
 
-			// Betrag
-			$buchung->appendChild($tmp1 = $dom->createElement('Amt'));
-			$tmp1->appendChild($tmp2 = $dom->createElement('InstdAmt', $buchungssatz->amount));
-			$tmp2->setAttribute('Ccy', $this->waehrung);
+			// Amount
+			$transactionElement->appendChild($tmp1 = $dom->createElement('Amt'));
+			$tmp1->appendChild($tmp2 = $dom->createElement('InstdAmt', $transaction->amount));
+			$tmp2->setAttribute('Ccy', $this->currency);
 
 			// Institut
-			$buchung->appendChild($tmp1 = $dom->createElement('CdtrAgt'));
+			$transactionElement->appendChild($tmp1 = $dom->createElement('CdtrAgt'));
 			$tmp1->appendChild($tmp2 = $dom->createElement('FinInstnId'));
-			$tmp2->appendChild($dom->createElement('BIC', $buchungssatz->bic));
+			$tmp2->appendChild($dom->createElement('BIC', $transaction->bic));
 
-			// Inhaber
-			$buchung->appendChild($tmp1 = $dom->createElement('Cdtr'));
-			$tmp1->appendChild($dom->createElement('Nm', $buchungssatz->kontoinhaber));
+			// recipient
+			$transactionElement->appendChild($tmp1 = $dom->createElement('Cdtr'));
+			$tmp1->appendChild($dom->createElement('Nm', $transaction->recipient));
 
 			// IBAN
-			$buchung->appendChild($tmp1 = $dom->createElement('CdtrAcct'));
+			$transactionElement->appendChild($tmp1 = $dom->createElement('CdtrAcct'));
 			$tmp1->appendChild($tmp2 = $dom->createElement('Id'));
-			$tmp2->appendChild($dom->createElement('IBAN', $buchungssatz->iban));
+			$tmp2->appendChild($dom->createElement('IBAN', $transaction->iban));
 
-			// Verwendungszweck
-			$buchung->appendChild($tmp1 = $dom->createElement('RmtInf'));
-			$tmp1->appendChild($dom->createElement('Ustrd', $buchungssatz->verwendungszweck));
+			// reference
+			$transactionElement->appendChild($tmp1 = $dom->createElement('RmtInf'));
+			$tmp1->appendChild($dom->createElement('Ustrd', $transaction->reference));
 		}
 
-		// XML exportieren
+		// export XML
 		return $dom->saveXML();
 	}
 
-	function getUmsatzsumme() {
-		$betrag = 0;
+	function getTotalAmount() {
+		$amount = 0;
 
-		foreach ($this->buchungssaetze as $buchungssatz) {
-			$betrag = $betrag + $buchungssatz->amount;
+		foreach ($this->transactions as $transaction) {
+			$amount += $transaction->amount;
 		}
 
-		return $betrag;
+		return $amount;
 	}
 }
-
-
-
-?>
