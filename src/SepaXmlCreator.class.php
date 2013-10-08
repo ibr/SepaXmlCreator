@@ -6,7 +6,9 @@
  * Korbinian Pauli
  */
 
-class SepaTransaction{
+namespace SepaXmlCreator;
+
+class SepaTransaction {
 	var $end2end, $iban, $bic, $recipient, $reference, $amount;
 
 	public function setEnd2End($end2end) {
@@ -60,7 +62,7 @@ class SepaXmlCreator {
 	}
 
 	function generateTransferFile() {
-		$dom = new DOMDocument('1.0', 'utf-8');
+		$dom = new \DOMDocument('1.0', 'utf-8');
 
 		// Build Document-Root
 		$document = $dom->createElement('Document');
@@ -157,7 +159,7 @@ class SepaXmlCreator {
 		return $dom->saveXML();
 	}
 
-	function getTotalAmount() {
+	private function getTotalAmount() {
 		$amount = 0;
 
 		foreach ($this->transactions as $transaction) {

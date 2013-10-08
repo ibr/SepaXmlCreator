@@ -1,10 +1,12 @@
 <?php
 
 	// include SepaXmlCreator class
-	require_once 'SepaXmlCreator.class.php';
+	require_once '../src/SepaXmlCreator.class.php';
+
+
 
 	// create new instance
-	$creator = new SepaXmlCreator();
+	$creator = new \SepaXmlCreator\SepaXmlCreator();
 
 	$creator->setDebitorValues('name of my bank account', 'IBAN of my bank account', 'BIC of my bank account');
 
@@ -15,7 +17,7 @@
 	$creator->setExecutionOffset(3);
 
 	// Create new transfer
-	$transaction = new SepaTransaction();
+	$transaction = new \SepaXmlCreator\SepaTransaction();
 	// Amount
 	$transaction->setAmount(10);
 	// end2end reference (OPTIONAL)
@@ -32,7 +34,7 @@
 	$creator->addTransaction($transaction);
 
 	// repeat for as many transactions you like
-	$transaction = new SepaTransaction();
+	$transaction = new \SepaXmlCreator\SepaTransaction();
 	$transaction->setAmount(7);
 	$transaction->setBic('EMPFAENGERBIC');
 	$transaction->setRecipient('Mustermann, Max');
